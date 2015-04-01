@@ -27,4 +27,7 @@ Steps:
     
 # Contributors
 * Alex Cozzi
+* Mirek Melichar
+* Amit Jaiswal
+* mijiang
  
