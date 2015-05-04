@@ -39,7 +39,7 @@ object NodeSuiteRunner {
 
 @RunWith(classOf[JUnitRunner])
 class NodeSuite extends FunSuite {
-  val features = JsObject("f1" -> JsNumber(0) :: "f2" -> JsNumber(1) :: Nil)
+  val features = JsObject("f1" -> JsNumber(0) :: "f2" -> JsNumber(1) :: "c1" -> JsString("a") :: Nil)
 
   test("A leaf node returns a value") {
     val onlyLeaf = new Tree(Leaf(0.0))
@@ -55,9 +55,9 @@ class NodeSuite extends FunSuite {
   }
 
   test("A IsIn node evaluates a categorical variable") {
-    val tree = new Tree(IsIn("f2", Set("1"), Leaf(1), Leaf(-1), Leaf(0)))
+    val tree = new Tree(IsIn("c1", Set("a"), Leaf(1), Leaf(-1), Leaf(0)))
     assertResult(1) { tree.eval(features) }
-    assertResult(-1) { tree.eval(JsObject("f2" -> JsString("2") :: Nil)) }
+    assertResult(-1) { tree.eval(JsObject("c1" -> JsString("2") :: Nil)) }
   }
 
   test("A tree combines multiple branches") {
@@ -164,8 +164,8 @@ object Utils {
     val model = Model.fromJSON(Json.parse(input))
     val testSet = Utils.readTestFile("testmodels/data.json")
     for (testCase <- testSet) {
-      val prediction =  model.eval(testCase)
-      val expected = (testCase \ "model").as[Double] 
+      val prediction = model.eval(testCase)
+      val expected = (testCase \ "model").as[Double]
       val error = scala.math.abs(expected - prediction)
       // assume that we get pretty close to the test case
       assert(error < 0.1, s"expected: $expected, prediction: $prediction, error: $error")
