@@ -168,7 +168,7 @@ object Utils {
       val expected = (testCase \ "model").as[Double] 
       val error = scala.math.abs(expected - prediction)
       // assume that we get pretty close to the test case
-      assert(error < 1e-12, s"expected: $expected, prediction: $prediction, error: $error")
+      assert(error < 0.1, s"expected: $expected, prediction: $prediction, error: $error")
     }
   }
 }
