@@ -12,7 +12,7 @@
 # General Public License for more details.
 
 require(gbm)
-require(rjson)
+library(jsonlite)
 require(plyr)
 
 
@@ -130,7 +130,7 @@ gbm.tree.json <- function (model, i.tree = 1, trees=model$trees)
       if (node$SplitVar >= 1) {
         # split node
         node$SplitVarName <- model$var.names[node$SplitVar]
-        if (model$var.type[node$SplitVar] > 0) {
+        if (model$var.type[node$SplitVar] > 0) { 
           # categorical variable
           node$Categorical <- TRUE
           c.splits <- model$c.splits[[node$SplitCodePred+1]] # -1 (L) or 1 (R) for each level
@@ -138,6 +138,14 @@ gbm.tree.json <- function (model, i.tree = 1, trees=model$trees)
             stop("Unexpected value in c.splits: ", paste(c.splits,collapse=","))
           var.levels <- model$var.levels[[node$SplitVar]] # actual level labels for this variable
           node$SplitCodePred <- as.list(var.levels[which(c.splits==-1)]) # category labels for left tree, enforce list (even when single element)
+        } else if (model$var.type[node$SplitVar] == 0 && is.character(model$var.levels[[node$SplitVar]])) {  
+          # ordered categorical variable, it means that we need to translate the threshold into a categorical set operation
+          node$Categorical <- TRUE
+          var.levels <- model$var.levels[[node$SplitVar]] # actual level labels for this variable
+          # the threshold in gbm is computed after subtracting 1 from the index of the levels, so we need
+          # to add one to the split to identify which levels are left of the threshold.
+          node$SplitCodePred <- as.list(var.levels[1:length(var.levels) < node$SplitCodePred + 1]) 
+          
         }
       } else {
         # terminal node

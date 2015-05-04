@@ -39,30 +39,30 @@ object NodeSuiteRunner {
 
 @RunWith(classOf[JUnitRunner])
 class NodeSuite extends FunSuite {
-  val features = Map[String, Double]("f1" -> 0, "f2" -> 1)
+  val features = JsObject("f1" -> JsNumber(0) :: "f2" -> JsNumber(1) :: Nil)
 
   test("A leaf node returns a value") {
     val onlyLeaf = new Tree(Leaf(0.0))
-    expectResult(0.0) {
+    assertResult(0.0) {
       onlyLeaf.eval(features)
     }
   }
 
   test("A LessThan node evaluates a variable") {
     val tree = new Tree(LessThan("f1", 1.0, Leaf(1), Leaf(-1), Leaf(0)))
-    expectResult(1) { tree.eval(features) }
-    expectResult(-1) { tree.eval(Map("f1" -> 2)) }
+    assertResult(1) { tree.eval(features) }
+    assertResult(-1) { tree.eval(JsObject("f1" -> JsNumber(2) :: Nil)) }
   }
 
   test("A IsIn node evaluates a categorical variable") {
-    val tree = new Tree(IsIn("f2", Set(1), Leaf(1), Leaf(-1), Leaf(0)))
-    expectResult(1) { tree.eval(features) }
-    expectResult(-1) { tree.eval(Map("f2" -> 2)) }
+    val tree = new Tree(IsIn("f2", Set("1"), Leaf(1), Leaf(-1), Leaf(0)))
+    assertResult(1) { tree.eval(features) }
+    assertResult(-1) { tree.eval(JsObject("f2" -> JsString("2") :: Nil)) }
   }
 
   test("A tree combines multiple branches") {
     val tree = new Tree(LessThan("f1", 3, LessThan("f1", 2, LessThan("f1", 1, Leaf(1), Leaf(0), Leaf(Double.NaN)), Leaf(0), Leaf(Double.NaN)), Leaf(0), Leaf(Double.NaN)))
-    expectResult(1) { tree.eval(features) }
+    assertResult(1) { tree.eval(features) }
   }
 }
 
@@ -72,7 +72,7 @@ class JsonSuite extends FunSuite {
     val leaf = """{ "prediction": -0.010983234 }"""
     val leafJson = Json.parse(leaf)
     val node = Model.parseNode(leafJson)
-    expectResult(Leaf(-0.010983234)) { node }
+    assertResult(Leaf(-0.010983234)) { node }
   }
 
   test("executing a node") {
@@ -97,9 +97,9 @@ class JsonSuite extends FunSuite {
     val node = Model.parseNode(condJson)
 
     val tree = Tree(node)
-    expectResult(-0.010983234) { tree.eval(Map("VariableA" -> 0.0)) }
-    expectResult(-1.1031008E-4) { tree.eval(Map("VariableA" -> 33045.0)) }
-    expectResult(-0.004943939) { tree.eval(Map("VariableA" -> Double.NaN)) }
+    assertResult(-0.010983234) { tree.eval(JsObject("VariableA" -> JsNumber(0.0) :: Nil)) }
+    assertResult(-1.1031008E-4) { tree.eval(JsObject("VariableA" -> JsNumber(33045.0) :: Nil)) }
+    assertResult(-0.004943939) { tree.eval(JsObject(Nil)) }
 
   }
 
@@ -112,8 +112,8 @@ class JsonSuite extends FunSuite {
 
   test("reading and parsing of a model") {
     val model = Utils.readModel("testmodels/model.json")
-    expectResult(100) { model.ntrees }
-    expectResult("model") { model.name }
+    assertResult(100) { model.ntrees }
+    assertResult("gbm1") { model.name }
   }
 
   test("compare model with test cases") {
@@ -145,7 +145,7 @@ class JsonSuite extends FunSuite {
     val x1 = Map("variable1" -> 0.0)
     val x2 = Map("variable1" -> 33045.0)
     val contribution = Map("variable1" -> (-1.1031008E-4 + 0.010983234))
-    expectResult((contribution, contribution)) { model.contribution(x1, x2) }
+    //assertResult((contribution, contribution)) { model.contribution(x1, x2) }
   }
 }
 
@@ -155,24 +155,20 @@ object Utils {
     Model.fromJSON(Json.parse(input))
   }
 
-  def readTestFile(filename: String): Seq[Map[String, Double]] = {
-    val lines = Source.fromFile(filename).getLines
-    lines map {
-      _.split("\\s+") map {
-        pair =>
-          val arr = pair.split(":")
-          (arr(0), arr(1) match { case "NA" => Double.NaN; case _ => arr(1).toDouble })
-      } toMap
-    } toSeq
+  def readTestFile(filename: String): Seq[JsObject] = {
+    Json.parse(Source.fromFile(filename).mkString).as[Seq[JsObject]]
   }
+
   def testModel(name: String) {
     val input = Source.fromFile(name + ".json").mkString
     val model = Model.fromJSON(Json.parse(input))
-    val testSet = Utils.readTestFile(name + ".tsv")
+    val testSet = Utils.readTestFile("testmodels/data.json")
     for (testCase <- testSet) {
-      val error = scala.math.abs(testCase("model") / 1e6 - model.eval(testCase))
+      val prediction =  model.eval(testCase)
+      val expected = (testCase \ "model").as[Double] 
+      val error = scala.math.abs(expected - prediction)
       // assume that we get pretty close to the test case
-      assert(error < 1e-12, error)
+      assert(error < 1e-12, s"expected: $expected, prediction: $prediction, error: $error")
     }
   }
 }

@@ -21,11 +21,8 @@ import java.io.InputStream
 
 /**
  * Simple implementation of a decision tree.
- * We assume that all the nodes are of only two kinds: 1) Leafs, that simply returns a value, and 2)
- * LessThan nodes, that compare a variable against a threshold and execute one of the two paths accordingly.
- *
- * @author acozzi
- *
+ * All the nodes are either: 1) Leafs, that simply returns a value, and
+ * 2) Conditional nodes, that compare a variable against a condtion and execute one of the two paths accordingly.
  */
 sealed abstract class Node
 
@@ -35,7 +32,7 @@ sealed abstract class Node
  */
 case class LessThan(variable: String = "", threshold: Double = Double.NaN, trueBranch: Node, falseBranch: Node, invalidBranch: Node) extends Node
 
-case class IsIn(variable: String = "", catSet: Set[Int], trueBranch: Node, falseBranch: Node, invalidBranch: Node) extends Node
+case class IsIn(variable: String = "", catSet: Set[String], trueBranch: Node, falseBranch: Node, invalidBranch: Node) extends Node
 
 case class Leaf(prediction: Double = Double.NaN) extends Node
 
@@ -44,18 +41,21 @@ case class Leaf(prediction: Double = Double.NaN) extends Node
  * a score.
  */
 class Tree(val top: Node) {
-  def eval(features: Map[String, Double], node: Node = top): Double = {
+  def eval(features: JsObject, node: Node = top): Double = {
     node match {
       case LessThan(variable, threshold, trueBranch, falseBranch, missingBranch) =>
-        val feature = features.getOrElse(variable, Double.NaN)
-        if (feature.isNaN) eval(features, missingBranch) else if (feature < threshold) eval(features, trueBranch) else eval(features, falseBranch)
+        (features \ variable).asOpt[Double] match {
+          case None => eval(features, missingBranch)
+          case Some(feature) =>
+            if (feature < threshold) eval(features, trueBranch)
+            else eval(features, falseBranch)
+        }
       case IsIn(variable, catSet, trueBranch, falseBranch, missingBranch) =>
-        val feature = features.getOrElse(variable, Double.NaN)
-        if (feature.isNaN) eval(features, missingBranch)
-        else {
-          if (!(0 to 63).map(_.toDouble).toList.contains(feature))
-            throw new Error("Factor " + variable + " is categorical but has invalid level (" + feature + ")")
-          if (catSet.contains(feature.toInt)) eval(features, trueBranch) else eval(features, falseBranch)
+        (features \ variable).asOpt[String] match {
+          case None => eval(features, missingBranch)
+          case Some(feature) =>
+            if (catSet.contains(feature)) eval(features, trueBranch)
+            else eval(features, falseBranch)
         }
       case Leaf(value) => value
     }
@@ -107,7 +107,7 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
    * returns.
    *
    */
-  def evalMulti(features: Map[String, Double]): Map[String, Double] = {
+  def evalMulti(features: JsObject): Map[String, Double] = {
     distribution match {
       case "multinomial" => {
         val scores = (classes map (c => 0.0)).toArray
@@ -129,7 +129,7 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
    * @param features vector of variables and values.
    * @return score of the trees on the feature vector.
    */
-  def eval(features: Map[String, Double]): Double = {
+  def eval(features: JsObject): Double = {
     val rawScore = trees.map(_.eval(features)).reduceLeft(_ + _)
     distribution match {
       case "gaussian"  => rawScore
@@ -151,8 +151,8 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
    * Compute the contribution of the variables to explain the final score
    * Returns a vector containing the amount of score contributed by each variable.
    */
-
-  def contribution(x1: Map[String, Double], x2: Map[String, Double]): (Map[String, Double], Map[String, Double]) = {
+/*
+  def contribution(x1: Map[String, JsValue], x2: Map[String, JsValue]): (Map[String, Double], Map[String, Double]) = {
     // println("contribution", x1, x2)
     if (x1 == x2) {
       val zero = x1 map { p => (p._1, 0.0) }
@@ -161,7 +161,7 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
       (delta(x1, x2, usedVariables), delta(x1, x2, usedVariables, criterium = "max"))
     }
   }
-
+*/
   /**
    * Estimate the contribution of each factor to the current score using the following heuristic:
    * - take the starting vector (x1)
@@ -171,7 +171,8 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
    * - call f(x1') - f(x) the contribution of variable v
    * - from this vector repeat the procedure for all the other variables until we reach (x2)
    */
-  protected def delta(x1: Map[String, Double], x2: Map[String, Double], variables: Seq[String], criterium: String = "min"): Map[String, Double] = {
+  /*
+  protected def delta(x1: Map[String, JsValue], x2: Map[String, JsValue], variables: Seq[String], criterium: String = "min"): Map[String, Double] = {
     // println("delta: " + x1 + "\n" + x2 + "\n" + variables)
     if (variables.isEmpty) {
       Map.empty
@@ -195,7 +196,9 @@ case class Model(name: String = "", distribution: String = "gaussian", classes: 
       delta(x1 + (minVariable -> x2.getOrElse(minVariable, Double.NaN)), x2, variables filterNot (_ == minVariable)) + absDelta
     }
   }
-  protected def perturb(x1: Map[String, Double], x2: Map[String, Double], variable: String): Double = eval(x1 + (variable -> x2.getOrElse(variable, Double.NaN)))
+  protected def perturb(x1: JsValue, x2: JsValue, variable: String): Double = eval(x1 + (variable -> x2.getOrElse(variable, Double.NaN)))
+  * 
+  */
 }
 
 object Model {
@@ -231,9 +234,9 @@ object Model {
         Tuple2("if_missing", _@ if_missing)
         )) =>
         IsIn(factor, catSet.map({
-          case JsNumber(e) => e.toInt
-          case JsString(e) => try { e.toInt } catch { case _: Throwable => throw new Error("Unable to convert to integer " + e) }
-          case e           => throw new Error("Unable to convert to integer " + e)
+          case JsNumber(e) => e.toString
+          case JsString(e) => e
+          case e           => throw new Error("Unable to convert to String " + e)
         }).toSet, parseNode(if_true), parseNode(if_false), parseNode(if_missing))
       case JsObject(Seq(Tuple2("cond", JsObject(Seq(Tuple2("var", JsString(factor)), Tuple2("op", JsString("<")), Tuple2("val", JsNumber(threshold))))),
         Tuple2("if_true", _@ if_true),

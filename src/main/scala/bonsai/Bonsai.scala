@@ -78,13 +78,13 @@ object Bonsai extends App {
         println("Validation not performed. Missing validation file: " + modelDataFilename.get)
       else {
         println(s"Validating on file: ${modelDataFilename.get}")
-        val tsv = TestFile.readFile(modelDataFilename.get)
-        val stat = tsv.map({ value: Map[String, Double] =>
+        val data = Json.parse(Source.fromFile(modelDataFilename.get).mkString).as[Seq[JsObject]]
+        val stat = data.map({ value =>
           val calc = m.eval(value)
-          val orig = value("model") / 1e6
+          val orig = (value \ "model").as[Double]
           val diff = orig - calc
           if (Math.abs(diff) > 1e-13) {
-            println("!Large Diff:" + diff, "Eval:" + m.eval(value), "Orig:" + value("model") / 1e6)
+            println("!Large Diff:" + diff, "Eval:" + calc, "Orig:" + orig)
             1
           } else
             0
@@ -102,7 +102,7 @@ object Bonsai extends App {
   }
 
   def fixAllScientificNotations(x: String) = x.replaceAll("(\\d+)(e|E)\\+(\\d+)", "$1E$3") // 1e+2 is not accepted by the parser ("+" must be removed)
-  
+
   final val ind = "    "
 
   /**
@@ -112,13 +112,13 @@ object Bonsai extends App {
    * 2-ways tree.
    */
   def generateCModel(m: Model): String = {
-      m.usedVariables.map({
-        variable =>
-          if (m.usedCategoricalVariables.contains(variable))
-            ind + "uint64_t " + variable + "_catbit = <code to retrieve your values>;"
-          else
-            ind + "float " + variable + " = <code to retrieve your values>;"
-      }).mkString("\n") +
+    m.usedVariables.map({
+      variable =>
+        if (m.usedCategoricalVariables.contains(variable))
+          ind + "uint64_t " + variable + "_catbit = <code to retrieve your values>;"
+        else
+          ind + "float " + variable + " = <code to retrieve your values>;"
+    }).mkString("\n") +
       "\n\n" +
       ind + "/* Return value. */\n" + ind + "double net_response = 0.0;\n\n" +
       (m.trees zip (1 to m.trees.length) map { case (tree, i) => ind + "/* Tree " + i + " of " + m.trees.length + ". */\n" + generateC(tree.top) }).mkString("\n") +
@@ -138,8 +138,8 @@ object Bonsai extends App {
           generateC(falseBranch, indent + ind) +
           indent + "}\n"
       case IsIn(variable, catSet, trueBranch, falseBranch, missingBranch) =>
-        if (!catSet.forall(level => level >= 0 && level <= 63))
-          throw new Error("Invalid categorical variable level in condition. " + catSet.mkString("[", ",", "]"))
+        //if (!catSet.forall(level => level >= 0 && level <= 63))
+        //  throw new Error("Invalid categorical variable level in condition. " + catSet.mkString("[", ",", "]"))
         val catBitMask = catSet.toList.sorted.distinct.grouped(12).map(_.mkString("CAT_BMASK(", ", ", ")")).toList
         val catBitMaskStr = if (catBitMask.size > 1) catBitMask.mkString("(", " | ", ")") else catBitMask.mkString("")
         indent + "if ((" + variable + "_catbit & " + catBitMaskStr + ") != 0) {\n" +
