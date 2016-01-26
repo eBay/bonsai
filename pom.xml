@@ -4,10 +4,30 @@
 	<groupId>bonsai</groupId>
 	<artifactId>open-bonsai</artifactId>
 	<version>1.0</version>
+	<packaging>jar</packaging>
 	<name>bonsai</name>
 	<description>Decision tree evaluation</description>
+	<url>https://github.com/eBay/bonsai</url>
 	<inceptionYear>2012</inceptionYear>
-
+	<licenses>
+		<license>
+			<name>The Apache License, Version 2.0</name>
+			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+		</license>
+	</licenses>
+	<developers>
+		<developer>
+			<name>Alex Cozzi</name>
+			<email>acozzi@ebay.com</email>
+			<organization>eBay Software Foundation</organization>
+			<organizationUrl>http://ebayopensource.github.io</organizationUrl>
+		</developer>
+	</developers>
+	<scm>
+		<connection>scm:git:git@github.com:eBay/bonsai.git</connection>
+		<developerConnection>scm:git:git@github.com:eBay/bonsai.git</developerConnection>
+		<url>git@github.com:eBay/bonsai.git</url>
+	</scm>
 	<properties>
 		<maven.compiler.source>1.6</maven.compiler.source>
 		<maven.compiler.target>1.6</maven.compiler.target>
