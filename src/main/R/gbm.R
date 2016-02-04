@@ -18,7 +18,7 @@ require(plyr)
 
 gbm.model.used.variables <- function(object, trees=object$n.trees)
 {
-  varIndexes <- unique(unlist(lapply(best.gbm$trees[1:trees], function(x) unique(x[[1]]))))
+  varIndexes <- unique(unlist(lapply(object$trees[1:trees], function(x) unique(x[[1]]))))
                                         # pick only valid indexes and add one since the gbm object uses the
   varIndexes <- varIndexes[varIndexes>=0] + 1
   object$var.names[varIndexes]
