@@ -19,7 +19,10 @@ require(plyr)
 gbm.model.used.variables <- function(object, trees=object$n.trees)
 {
   varIndexes <- unique(unlist(lapply(object$trees[1:trees], function(x) unique(x[[1]]))))
-                                        # pick only valid indexes and add one since the gbm object uses the
+                                        # pick only valid indexes and add one since the gbm object.
+                                        # json is returned only for the specified tree slice, useful
+                                        # when you want to generate json up to  optimal num of tree
+                                        # instead of whole model.
   varIndexes <- varIndexes[varIndexes>=0] + 1
   object$var.names[varIndexes]
 }
